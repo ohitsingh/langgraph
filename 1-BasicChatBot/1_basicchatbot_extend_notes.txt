@@ -1,0 +1,311 @@
+Step-by-step notes for 1_basicchatbot_extend.ipynb
+===================================================
+
+File:
+D:\AI Engineer\AgenticLangGraph\ALG-P1\1-BasicChatBot\1_basicchatbot_extend.ipynb
+
+
+1. Test cell
+------------
+
+Code:
+
+2+3
+
+Purpose:
+This is a simple notebook test. The output should be 5.
+
+
+2. Import required packages
+---------------------------
+
+Code:
+
+import os
+from dotenv import load_dotenv
+from typing import Annotated
+from typing_extensions import TypedDict
+from langgraph.graph import StateGraph, START, END
+from langgraph.graph.message import add_messages
+from langchain_tavily import TavilySearch
+from langchain.chat_models import init_chat_model
+
+Purpose:
+This loads the required packages for LangGraph, LangChain model setup,
+Tavily web search, and Python typing helpers.
+
+
+3. Load environment variables
+-----------------------------
+
+Code:
+
+load_dotenv()
+
+Purpose:
+This reads values from your .env file.
+
+You need API keys such as:
+
+GROQ_API_KEY=...
+TAVILY_API_KEY=...
+
+
+4. Create Tavily search tool
+----------------------------
+
+Code:
+
+tool = TavilySearch(max_results=2)
+tool.invoke("What is langgraph")
+
+Purpose:
+This creates a Tavily search tool and tests whether it is working.
+It returns web search results.
+
+
+5. Create custom Python tool
+----------------------------
+
+Code:
+
+def multiply(a:int,b:int)->int:
+    """ Multiply a and b
+    Args:
+        a (int) : frist number
+        b (int) : second number
+    return:
+        int : Output int
+
+    """
+    return a*b
+
+Purpose:
+This creates your own custom tool. The LLM can call this function when
+the user asks for multiplication.
+
+Example:
+
+multiply(5, 3)
+
+Output:
+
+15
+
+
+6. Make tool list
+-----------------
+
+Code:
+
+tools = [tool, multiply]
+
+Purpose:
+This gives the chatbot access to two tools:
+
+- TavilySearch for web search
+- multiply for multiplication
+
+
+7. Initialize LLM
+-----------------
+
+Code:
+
+llm = init_chat_model("groq:llama-3.1-8b-instant")
+
+Purpose:
+This connects your notebook to Groq's Llama model.
+
+
+8. Bind tools with LLM
+----------------------
+
+Code:
+
+llm_with_tool = llm.bind_tools(tools)
+
+Purpose:
+This allows the LLM to decide when it should call a tool.
+
+For example:
+
+- If the user asks "what is recent ai news", the model can call TavilySearch.
+- If the user asks "what is multiplication of 5 and 3", the model can call multiply.
+
+
+9. Define graph state
+---------------------
+
+Code:
+
+class State(TypedDict):
+    messages: Annotated[list, add_messages]
+
+Purpose:
+This defines the state of your LangGraph application.
+
+The state contains:
+
+messages
+
+The add_messages function automatically appends new messages to the old
+conversation instead of replacing them.
+
+
+10. Create chatbot node
+-----------------------
+
+Code:
+
+def tool_calling_llm(state:State):
+    return {"messages":[llm_with_tool.invoke(state["messages"])]}
+
+Purpose:
+This function is a LangGraph node.
+
+It sends the current messages to the LLM and returns the LLM's response.
+
+
+11. Build LangGraph
+-------------------
+
+Code:
+
+builder = StateGraph(State)
+builder.add_node("tool_calling_llm", tool_calling_llm)
+builder.add_node("tools", ToolNode(tools))
+
+Purpose:
+This creates the graph builder and adds two nodes:
+
+- tool_calling_llm: the chatbot/LLM node
+- tools: the node that executes selected tools
+
+
+12. Connect graph edges
+-----------------------
+
+Code:
+
+builder.add_edge(START, "tool_calling_llm")
+
+builder.add_conditional_edges(
+    "tool_calling_llm",
+    tools_condition
+)
+
+builder.add_edge("tools", END)
+
+Purpose:
+This defines the flow of your graph.
+
+Current flow:
+
+START -> tool_calling_llm -> maybe tools -> END
+
+Meaning:
+
+- The graph starts at START.
+- It goes to the LLM node.
+- If the LLM requests a tool, tools_condition routes execution to the tools node.
+- If the LLM does not request a tool, the graph ends.
+- After the tools node runs, your current graph ends.
+
+
+13. Compile graph
+-----------------
+
+Code:
+
+graph = builder.compile()
+
+Purpose:
+This converts the graph builder into a runnable LangGraph application.
+
+
+14. Display graph
+-----------------
+
+Code:
+
+display(Image(graph.get_graph().draw_mermaid_png()))
+
+Purpose:
+This displays the graph workflow diagram inside the notebook.
+
+
+15. Ask recent AI news
+----------------------
+
+Code:
+
+graph.invoke({"messages":["what is recent ai news"]})
+
+Purpose:
+This sends a message to the graph.
+
+Because the question needs recent information, the LLM calls the Tavily
+search tool.
+
+
+16. Ask multiplication
+----------------------
+
+Code:
+
+responce = graph.invoke({"messages":["what is multiplication of 5 and 3"]})
+responce['messages'][-1].content
+
+Purpose:
+This asks the chatbot to multiply 5 and 3.
+
+The LLM calls your multiply tool and returns:
+
+15
+
+Note:
+The variable name is written as "responce" in the notebook. It still works,
+but the correct spelling is "response".
+
+
+Important improvement
+---------------------
+
+Your current graph has this edge:
+
+builder.add_edge("tools", END)
+
+That means the graph stops immediately after a tool runs.
+
+For a more natural chatbot response, you can change it to:
+
+builder.add_edge("tools", "tool_calling_llm")
+
+Why this is useful:
+After the tool runs, the result goes back to the LLM. Then the LLM can read
+the tool result and produce a final human-friendly answer.
+
+Improved flow:
+
+START -> tool_calling_llm -> tools -> tool_calling_llm -> END
+
+
+Overall summary
+---------------
+
+This notebook builds a basic LangGraph chatbot that can use tools.
+
+It has:
+
+- One LLM node
+- One tools node
+- A Tavily web search tool
+- A custom multiply function
+- Conditional routing using tools_condition
+
+The chatbot can:
+
+- Search the web for recent information
+- Call a custom Python function for multiplication
+
