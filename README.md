@@ -29,7 +29,7 @@ This repository contains practical implementations of modern Agentic AI concepts
 
 # Repository Structure
 
-```text id="x7m2qp"
+```text
 langgraph/
 │
 ├── 1-BasicChatBot/
@@ -61,7 +61,7 @@ The repository focuses on building production-style AI agents with persistent me
 
 # High Level Architecture
 
-```text id="n4r8tx"
+```text
 ┌──────────────────────────────────────────────────────┐
 │                  User Message                        │
 └──────────────────────────────────────────────────────┘
@@ -110,13 +110,13 @@ The repository focuses on building production-style AI agents with persistent me
 
 The user sends a message:
 
-```text id="m7q1zp"
+```text
 "What is the weather in California?"
 ```
 
 or
 
-```text id="b5r9tw"
+```text
 "I need expert guidance for building an AI agent."
 ```
 
@@ -126,7 +126,7 @@ or
 
 The workflow is built using:
 
-```python id="v3x8hk"
+```python
 StateGraph(State)
 ```
 
@@ -134,7 +134,7 @@ The graph maintains conversation state across interactions.
 
 Example state:
 
-```python id="h8n2rm"
+```python
 class State(TypedDict):
     messages: Annotated[list, add_messages]
 ```
@@ -151,7 +151,7 @@ This allows:
 
 The chatbot node receives current state:
 
-```python id="u4m7qc"
+```python
 def chatbot(state):
 ```
 
@@ -167,7 +167,7 @@ The LLM processes:
 
 LangGraph evaluates:
 
-```python id="k2t9xs"
+```python
 tools_condition
 ```
 
@@ -182,7 +182,7 @@ The LLM decides whether:
 
 If tools are required:
 
-```python id="y5r1nv"
+```python
 ToolNode(tools=tools)
 ```
 
@@ -199,7 +199,7 @@ handles:
 
 Example:
 
-```python id="z7q4pm"
+```python
 interrupt({"query": query})
 ```
 
@@ -224,7 +224,7 @@ The LLM generates the final natural language response.
 
 # LangGraph Flow
 
-```text id="f2m8wy"
+```text
 START
   ↓
 chatbot
@@ -243,117 +243,427 @@ ToolNode     Final Output       │
 
 # Core Components
 
-| Component         | Responsibility                  |
-| ----------------- | ------------------------------- |
-| `StateGraph`      | Workflow orchestration          |
-| `ToolNode`        | Tool execution                  |
-| `tools_condition` | Conditional routing             |
-| `interrupt()`     | Human-in-loop support           |
-| `MemorySaver`     | Persistent memory               |
-| `ChatGroq`        | LLM reasoning                   |
-| `TavilySearch`    | External web search             |
-| `add_messages`    | Conversation history management |
+| Component | Responsibility |
+|---|---|
+| `StateGraph` | Workflow orchestration |
+| `ToolNode` | Tool execution |
+| `tools_condition` | Conditional routing |
+| `interrupt()` | Human-in-loop support |
+| `MemorySaver` | Persistent memory |
+| `ChatGroq` | LLM reasoning |
+| `TavilySearch` | External web search |
+| `add_messages` | Conversation history management |
 
 ---
 
-# Key LangGraph Concepts Covered
+# LangGraph State & Message System
 
-## State Management
+This section explains the most important LangGraph concepts related to:
 
-```python id="u6p3rt"
-Annotated[list, add_messages]
-```
+* `State`
+* `TypedDict`
+* `Annotated`
+* `BaseMessage`
+* `add_messages`
+* `graph.invoke()`
+* Message flow inside LangGraph
 
-Maintains chat history automatically.
-
----
-
-## Conditional Edges
-
-```python id="z4w8kc"
-graph_builder.add_conditional_edges(
-    "chatbot",
-    tools_condition
-)
-```
-
-Dynamically routes workflow execution.
+This acts as a quick revision guide whenever revisiting LangGraph projects.
 
 ---
 
-## Tool Calling
+# 1. What is State in LangGraph?
 
-```python id="p9m1xh"
-llm.bind_tools(tools)
+LangGraph applications work using a shared state object.
+
+The state stores data flowing between nodes.
+
+Example:
+
+```python
+class State(TypedDict):
+    messages: Annotated[list[BaseMessage], add_messages]
 ```
 
-Enables LLM-driven tool usage.
+Here:
+
+* `State` defines the structure of data
+* `messages` stores chat history
+* Every node can read/update this state
 
 ---
 
-## Human-in-the-Loop
+# 2. Why Use TypedDict?
 
-```python id="g7x5rv"
-interrupt()
+`TypedDict` defines dictionary structure with type safety.
+
+Example:
+
+```python
+from typing_extensions import TypedDict
+
+class State(TypedDict):
+    messages: list
 ```
 
-Pauses graph execution for human input.
+Without `TypedDict`, Python treats state as a normal dictionary.
+
+With `TypedDict`:
+
+* IDE gets autocomplete
+* Type checking works
+* LangGraph understands state structure
 
 ---
 
-## Memory Persistence
+# 3. Understanding BaseMessage
 
-```python id="r5t2qn"
-MemorySaver()
+LangChain stores conversations as message objects.
+
+All message types inherit from:
+
+```python
+BaseMessage
 ```
 
-Stores conversation state between interactions.
+Types of messages:
+
+| Message Type | Purpose |
+|---|---|
+| `HumanMessage` | User input |
+| `AIMessage` | AI response |
+| `SystemMessage` | System instructions |
+| `ToolMessage` | Tool outputs |
 
 ---
 
-# Example Tool Registration
+# 4. Example of Messages
 
-## Human Assistance Tool
+```python
+from langchain_core.messages import HumanMessage, AIMessage
 
-```python id="w3m7pz"
-@tool
-def human_assistance(query: str) -> str:
-    human_response = interrupt({"query": query})
-    return human_response["data"]
+messages = [
+    HumanMessage(content="Hello"),
+    AIMessage(content="Hi! How can I help?")
+]
 ```
 
 ---
 
-## Tavily Search Tool
+# 5. What is Annotated?
 
-```python id="m2x8vy"
-tool = TavilySearch(max_results=2)
+Python `Annotated` adds metadata to types.
+
+Syntax:
+
+```python
+Annotated[type, metadata]
 ```
 
-Used for external web search capabilities.
+Example:
+
+```python
+Annotated[list[BaseMessage], add_messages]
+```
+
+Meaning:
+
+* Store list of messages
+* Use `add_messages` behavior while updating state
 
 ---
 
-# Example Workflow Setup
+# 6. What is add_messages?
 
-```python id="y8t1mc"
-graph_builder = StateGraph(State)
+`add_messages` is a LangGraph reducer.
 
-graph_builder.add_node("chatbot", chatbot)
+It tells LangGraph:
 
-tool_node = ToolNode(tools=tools)
-
-graph_builder.add_node("tools", tool_node)
-
-graph_builder.add_conditional_edges(
-    "chatbot",
-    tools_condition
-)
-
-graph_builder.add_edge("tools", "chatbot")
-
-graph_builder.add_edge(START, "chatbot")
+```text
+"Append new messages instead of replacing old messages"
 ```
+
+Without `add_messages`:
+
+```python
+messages = new_messages
+```
+
+Old conversation gets deleted.
+
+With `add_messages`:
+
+```python
+messages += new_messages
+```
+
+Conversation history is preserved.
+
+---
+
+# 7. Full State Definition
+
+```python
+from typing_extensions import TypedDict
+from typing import Annotated
+
+from langchain_core.messages import BaseMessage
+from langgraph.graph.message import add_messages
+
+
+class State(TypedDict):
+    messages: Annotated[list[BaseMessage], add_messages]
+```
+
+---
+
+# 8. Creating Input State
+
+```python
+from langchain_core.messages import HumanMessage
+
+state_input: State = {
+    "messages": [
+        HumanMessage(content="add 2 and 3")
+    ]
+}
+```
+
+---
+
+# 9. Why Use `state_input: State`?
+
+Without this:
+
+```python
+state_input = {
+    "messages": [...]
+}
+```
+
+Python infers:
+
+```python
+dict[str, list[HumanMessage]]
+```
+
+But LangGraph expects:
+
+```python
+State
+```
+
+So IDE shows type errors.
+
+Correct approach:
+
+```python
+state_input: State = {...}
+```
+
+---
+
+# 10. What Does `graph.invoke()` Do?
+
+```python
+response = graph.invoke(state_input)
+```
+
+This:
+
+1. Sends state into graph
+2. Executes nodes
+3. Updates state
+4. Returns final state
+
+Returned object:
+
+```python
+response
+```
+
+contains updated messages and state values.
+
+---
+
+# 11. Accessing Final AI Response
+
+```python
+response["messages"][-1].content
+```
+
+Explanation:
+
+| Part | Meaning |
+|---|---|
+| `response["messages"]` | Full conversation history |
+| `[-1]` | Last message |
+| `.content` | Actual text |
+
+---
+
+# 12. Full Working Example
+
+```python
+from typing_extensions import TypedDict
+from typing import Annotated
+
+from langgraph.graph.message import add_messages
+from langchain_core.messages import BaseMessage, HumanMessage
+
+
+class State(TypedDict):
+    messages: Annotated[list[BaseMessage], add_messages]
+
+
+state_input: State = {
+    "messages": [
+        HumanMessage(content="add 2 and 3")
+    ]
+}
+
+response = graph.invoke(state_input)
+
+print(response["messages"][-1].content)
+```
+
+---
+
+# 13. Message Flow Inside LangGraph
+
+```text
+User Message
+      │
+      ▼
+
+HumanMessage
+      │
+      ▼
+
+State["messages"]
+      │
+      ▼
+
+graph.invoke()
+      │
+      ▼
+
+Chatbot Node
+      │
+      ▼
+
+AIMessage Added
+      │
+      ▼
+
+Updated State Returned
+```
+
+---
+
+# 14. Real Internal State Example
+
+Before execution:
+
+```python
+{
+    "messages": [
+        HumanMessage(content="add 2 and 3")
+    ]
+}
+```
+
+After execution:
+
+```python
+{
+    "messages": [
+        HumanMessage(content="add 2 and 3"),
+        AIMessage(content="The answer is 5")
+    ]
+}
+```
+
+---
+
+# 15. Why This Design is Powerful
+
+This architecture enables:
+
+* Stateful chatbots
+* Persistent memory
+* Multi-step reasoning
+* Tool calling
+* Human-in-loop systems
+* Agent workflows
+* Conversation history tracking
+
+This is the core foundation of LangGraph AI agents.
+
+---
+
+# 16. Important Interview Points
+
+## Why use `Annotated`?
+
+To attach reducer/update behavior to state fields.
+
+---
+
+## Why use `add_messages`?
+
+To preserve conversation history automatically.
+
+---
+
+## Why use `BaseMessage`?
+
+Because multiple message types exist.
+
+---
+
+## Why use `TypedDict`?
+
+To define structured graph state with type safety.
+
+---
+
+## What does `graph.invoke()` return?
+
+Updated graph state after execution.
+
+---
+
+# 17. Easy Memory Trick
+
+```text
+State = Shared Memory
+
+messages = Conversation History
+
+BaseMessage = Parent of all messages
+
+Annotated = Extra behavior
+
+add_messages = Append messages
+
+graph.invoke() = Run workflow
+```
+
+---
+
+# 18. Core Concept Summary
+
+| Concept | Meaning |
+|---|---|
+| `State` | Shared graph memory |
+| `TypedDict` | Typed dictionary |
+| `BaseMessage` | Parent message class |
+| `HumanMessage` | User message |
+| `AIMessage` | AI response |
+| `Annotated` | Add metadata |
+| `add_messages` | Append history |
+| `graph.invoke()` | Execute workflow |
 
 ---
 
@@ -375,7 +685,7 @@ graph_builder.add_edge(START, "chatbot")
 
 ## 1. Clone Repository
 
-```bash id="t4r7nx"
+```bash
 git clone https://github.com/ohitsingh/langgraph.git
 
 cd langgraph
@@ -387,7 +697,7 @@ cd langgraph
 
 ### Windows
 
-```bash id="v9q2pk"
+```bash
 python -m venv .venv
 
 .venv\Scripts\activate
@@ -395,7 +705,7 @@ python -m venv .venv
 
 ### Linux/macOS
 
-```bash id="b7m1xs"
+```bash
 python3 -m venv .venv
 
 source .venv/bin/activate
@@ -405,7 +715,7 @@ source .venv/bin/activate
 
 ## 3. Install Dependencies
 
-```bash id="f3r8wy"
+```bash
 pip install -r requirements.txt
 ```
 
@@ -415,7 +725,7 @@ pip install -r requirements.txt
 
 Create `.env`
 
-```env id="u2m5qt"
+```env
 GROQ_API_KEY=your_groq_api_key
 TAVILY_API_KEY=your_tavily_api_key
 ```
@@ -424,7 +734,7 @@ TAVILY_API_KEY=your_tavily_api_key
 
 # Run Project
 
-```bash id="w6x9pc"
+```bash
 python main.py
 ```
 
@@ -481,6 +791,240 @@ It is designed as a hands-on learning repository for building production-style A
 * Tavily Search API
 
 ---
+
+
+# LangGraph State Example  05/22/2026
+
+## State Definition
+
+```python
+class State(TypedDict):
+    messages: Annotated[list[BaseMessage], add_messages]
+```
+
+This defines the shared state used inside LangGraph.
+
+### Explanation
+
+| Component | Meaning |
+|---|---|
+| `State` | Shared graph memory |
+| `TypedDict` | Defines structured dictionary |
+| `messages` | Stores conversation history |
+| `BaseMessage` | Parent class for all messages |
+| `Annotated` | Adds metadata/behavior |
+| `add_messages` | Appends messages instead of replacing |
+
+---
+
+# Creating Input State
+
+```python
+from langchain_core.messages import HumanMessage
+
+state_input: State = {
+    "messages": [
+        HumanMessage(content="add 2 and 3")
+    ]
+}
+```
+
+## Explanation
+
+### `HumanMessage`
+
+Represents user input.
+
+Example:
+
+```python
+HumanMessage(content="add 2 and 3")
+```
+
+stores:
+
+```text
+User → "add 2 and 3"
+```
+
+---
+
+# Invoking LangGraph
+
+```python
+response = graph.invoke(state_input)
+```
+
+## What Happens Internally?
+
+```text
+1. Input state enters graph
+2. Chatbot node processes message
+3. LLM generates response
+4. AIMessage gets appended
+5. Updated state is returned
+```
+
+---
+
+# Accessing Final Response
+
+```python
+response["messages"][-1].content
+```
+
+## Explanation
+
+| Part | Meaning |
+|---|---|
+| `response["messages"]` | Full message history |
+| `[-1]` | Last message |
+| `.content` | Actual AI response text |
+
+---
+
+# Full Working Example
+
+```python
+from typing_extensions import TypedDict
+from typing import Annotated
+
+from langchain_core.messages import BaseMessage, HumanMessage
+from langgraph.graph.message import add_messages
+
+
+class State(TypedDict):
+    messages: Annotated[list[BaseMessage], add_messages]
+
+
+state_input: State = {
+    "messages": [
+        HumanMessage(content="add 2 and 3")
+    ]
+}
+
+response = graph.invoke(state_input)
+
+print(response["messages"][-1].content)
+```
+
+---
+
+# Message Flow
+
+```text
+User Input
+    │
+    ▼
+
+HumanMessage
+    │
+    ▼
+
+State["messages"]
+    │
+    ▼
+
+graph.invoke()
+    │
+    ▼
+
+LLM Processing
+    │
+    ▼
+
+AIMessage Added
+    │
+    ▼
+
+Updated State Returned
+```
+
+---
+
+# Example Internal State
+
+## Before Execution
+
+```python
+{
+    "messages": [
+        HumanMessage(content="add 2 and 3")
+    ]
+}
+```
+
+---
+
+## After Execution
+
+```python
+{
+    "messages": [
+        HumanMessage(content="add 2 and 3"),
+        AIMessage(content="The answer is 5")
+    ]
+}
+```
+
+---
+
+# Important Concepts
+
+## Why Use `add_messages`?
+
+Without it:
+
+```python
+messages = new_messages
+```
+
+Old messages get replaced.
+
+With it:
+
+```python
+messages += new_messages
+```
+
+Conversation history is preserved.
+
+---
+
+## Why Use `BaseMessage`?
+
+Because LangGraph supports multiple message types:
+
+* HumanMessage
+* AIMessage
+* SystemMessage
+* ToolMessage
+
+All inherit from:
+
+```python
+BaseMessage
+```
+
+---
+
+# Quick Revision Notes
+
+```text
+State = Shared Memory
+
+messages = Chat History
+
+HumanMessage = User Input
+
+AIMessage = AI Response
+
+Annotated = Add extra behavior
+
+add_messages = Append history
+
+graph.invoke() = Execute workflow
+```
 
 # Author
 
